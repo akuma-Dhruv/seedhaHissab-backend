@@ -22,6 +22,9 @@ public class TransactionResponse {
     private UUID vendorId;
     private UUID partnerId;
     private UUID paidByPartnerId;
+    private UUID ownerUserId;
+    private String counterpartyName;
+    private UUID counterpartyUserId;
     private String purpose;
     private LocalDate transactionDate;
     private TransactionStatus status;
@@ -40,6 +43,9 @@ public class TransactionResponse {
         r.setVendorId(t.getVendorId());
         r.setPartnerId(t.getPartnerId());
         r.setPaidByPartnerId(t.getPaidByPartnerId());
+        r.setOwnerUserId(t.getOwnerUserId());
+        r.setCounterpartyName(t.getCounterpartyName());
+        r.setCounterpartyUserId(t.getCounterpartyUserId());
         r.setPurpose(t.getPurpose());
         r.setTransactionDate(t.getTransactionDate());
         r.setStatus(t.getStatus());

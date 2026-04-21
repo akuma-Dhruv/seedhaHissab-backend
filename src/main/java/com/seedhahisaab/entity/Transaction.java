@@ -17,7 +17,8 @@ import java.util.UUID;
         @Index(name = "idx_txn_project_id", columnList = "project_id"),
         @Index(name = "idx_txn_vendor_project", columnList = "vendor_id, project_id"),
         @Index(name = "idx_txn_paid_by_partner", columnList = "paid_by_partner_id"),
-        @Index(name = "idx_txn_root_id", columnList = "root_transaction_id")
+        @Index(name = "idx_txn_root_id", columnList = "root_transaction_id"),
+        @Index(name = "idx_txn_owner_user", columnList = "owner_user_id")
 })
 @Getter
 @Setter
@@ -57,6 +58,15 @@ public class Transaction {
 
     @Column(name = "paid_by_partner_id")
     private UUID paidByPartnerId;
+
+    @Column(name = "owner_user_id")
+    private UUID ownerUserId;
+
+    @Column(name = "counterparty_name")
+    private String counterpartyName;
+
+    @Column(name = "counterparty_user_id")
+    private UUID counterpartyUserId;
 
     @Column(name = "purpose")
     private String purpose;

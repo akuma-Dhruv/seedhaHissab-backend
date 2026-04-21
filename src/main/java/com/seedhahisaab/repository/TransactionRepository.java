@@ -140,4 +140,62 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("projectId") UUID projectId,
             @Param("vendorId") UUID vendorId,
             @Param("txnType") String txnType);
+
+    // ----------------------------------------------------------------------
+    // Personal-transaction queries
+    // Personal transactions are rows where project_id IS NULL and the
+    // owner_user_id matches the current user. Same latest-version-wins +
+    // omit-aware semantics as the project-scoped queries above.
+    // ----------------------------------------------------------------------
+
+    @Query(value = """
+            SELECT t.* FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE (:includeOmitted = true OR t.status = 'ACTIVE')
+            ORDER BY t.transaction_date DESC, t.created_at DESC
+            LIMIT :lim OFFSET :off
+            """, nativeQuery = true)
+    List<Transaction> findLatestPersonalByOwner(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("includeOmitted") boolean includeOmitted,
+            @Param("lim") int limit,
+            @Param("off") int offset);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE (:includeOmitted = true OR t.status = 'ACTIVE')
+            """, nativeQuery = true)
+    long countLatestPersonalByOwner(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("includeOmitted") boolean includeOmitted);
+
+    @Query(value = """
+            SELECT COALESCE(SUM(t.amount), 0)
+            FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE t.status = 'ACTIVE'
+              AND t.type = :txnType
+            """, nativeQuery = true)
+    BigDecimal sumActivePersonalByOwnerAndType(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("txnType") String txnType);
 }
