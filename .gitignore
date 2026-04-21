@@ -1,0 +1,31 @@
+# Maven build output
+target/
+
+# Java compiled artifacts
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local environment files (NEVER commit secrets)
+.env
+.env.*
+!.env.example
