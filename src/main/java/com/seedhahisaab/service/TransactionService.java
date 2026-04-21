@@ -114,15 +114,6 @@ public class TransactionService {
         return new PagedResponse<>(data, page, limit, total);
     }
 
-    public TransactionResponse getLatest(UUID txnId, UUID userId) {
-        Transaction txn = transactionRepository.findById(txnId)
-                .orElseThrow(() -> ApiException.notFound("Transaction not found"));
-        requireTransactionOwnership(txn, userId);
-        Transaction latest = transactionRepository.findLatestByRootId(txn.getRootTransactionId())
-                .orElseThrow(() -> ApiException.notFound("No active version found for transaction"));
-        return TransactionResponse.from(latest);
-    }
-
     public List<TransactionResponse> getHistory(UUID txnId, UUID userId) {
         Transaction txn = transactionRepository.findById(txnId)
                 .orElseThrow(() -> ApiException.notFound("Transaction not found"));

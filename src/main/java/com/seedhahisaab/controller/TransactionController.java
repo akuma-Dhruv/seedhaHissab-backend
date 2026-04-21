@@ -56,13 +56,6 @@ public class TransactionController {
                 includeOmitted, page, limit));
     }
 
-    @GetMapping("/transactions/{id}/latest")
-    public ResponseEntity<TransactionResponse> getLatest(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(transactionService.getLatest(id, currentUserId(user)));
-    }
-
     @GetMapping("/transactions/{id}/history")
     public ResponseEntity<List<TransactionResponse>> getHistory(
             @PathVariable UUID id,
