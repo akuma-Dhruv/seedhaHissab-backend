@@ -2,7 +2,6 @@ package com.seedhahisaab.service;
 
 import com.seedhahisaab.domain.TransactionType;
 import com.seedhahisaab.dto.summary.ProjectSummaryResponse;
-import com.seedhahisaab.entity.Project;
 import com.seedhahisaab.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 

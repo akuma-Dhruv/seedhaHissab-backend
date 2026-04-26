@@ -7,6 +7,7 @@ import com.seedhahisaab.exception.ApiException;
 import com.seedhahisaab.repository.PartnerRepository;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,6 +25,14 @@ public class PartnerService {
 
     public PartnerResponse add(UUID projectId, PartnerRequest req, UUID userId) {
         projectService.requireProject(projectId, userId);
+        BigDecimal currentPercentage = partnerRepository.findByProjectId(projectId)
+                .stream().map(Partner::getSharePercentage)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal newPercentage = req.getSharePercentage() != null ? req.getSharePercentage() : BigDecimal.ZERO;
+                BigDecimal totalPercentage = currentPercentage.add(newPercentage);
+        if (totalPercentage.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw ApiException.badRequest("Total share percentage cannot exceed 100");
+        }
         Partner partner = Partner.builder()
                 .id(UUID.randomUUID())
                 .projectId(projectId)

@@ -43,7 +43,9 @@ COPY --from=build /workspace/app/target/*.jar app.jar
 
 # Spring Boot will read PORT from the env (see application.properties).
 # Default to 8080 if PORT is not provided.
+# Set production profile for Docker deployments
 ENV PORT=8080
+ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8080
 
 # Use exec form so signals (SIGTERM from `docker stop`) reach the JVM directly

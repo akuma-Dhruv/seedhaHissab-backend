@@ -3,6 +3,7 @@ package com.seedhahisaab.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -17,17 +18,35 @@ public class JwtUtil {
     private final long expirationMs;
 
     public JwtUtil(
-            @Value("${jwt.expiration.ms:86400000}") long expirationMs) {
+            @Value("${jwt.expiration.ms:86400000}") long expirationMs,
+            Environment environment) {
         String secret = System.getenv("SESSION_SECRET");
+        
+        // If not set as environment variable, try application properties
         if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException(
-                    "SESSION_SECRET environment variable is required but not set. " +
-                    "Please configure it before starting the application.");
+            secret = environment.getProperty("jwt.secret");
         }
+        
+        // Development fallback - generate a default secret
+        if (secret == null || secret.isBlank()) {
+            String profile = environment.getProperty("spring.profiles.active", "default");
+            if ("prod".equalsIgnoreCase(profile) || "production".equalsIgnoreCase(profile)) {
+                throw new IllegalStateException(
+                        "SESSION_SECRET environment variable is required in production. " +
+                        "Please set SESSION_SECRET or jwt.secret property before starting the application.");
+            }
+            // Use default for development
+            secret = "dev-secret-key-minimum-32-characters-long-for-jwt";
+            System.out.println("⚠️  WARNING: Using default JWT secret for development. " +
+                    "Set SESSION_SECRET environment variable or jwt.secret property for production.");
+        }
+        
         if (secret.length() < 32) {
             throw new IllegalStateException(
-                    "SESSION_SECRET must be at least 32 characters long for security.");
+                    "SESSION_SECRET/jwt.secret must be at least 32 characters long for security. " +
+                    "Current length: " + secret.length() + " characters.");
         }
+        
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }
