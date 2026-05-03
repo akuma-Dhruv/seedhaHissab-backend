@@ -84,4 +84,45 @@ public interface ReminderRepository extends JpaRepository<Reminder, UUID> {
             @Param("userId") UUID userId,
             @Param("today") LocalDate today,
             @Param("horizon") LocalDate horizon);
+
+    // -- Activity timeline aggregators ---------------------------------------
+    //
+    // All three queries are scoped by createdByUserId — reminders are
+    // creator-private even when attached to a shared project, so the
+    // timeline must respect the same boundary.
+
+    /** Project reminders for a user, newest activity (updatedAt) first. */
+    @Query("""
+            SELECT r FROM Reminder r
+            WHERE r.createdByUserId = :userId
+              AND r.linkedProjectId = :projectId
+            ORDER BY r.updatedAt DESC
+            """)
+    List<Reminder> findProjectRemindersForActivity(
+            @Param("userId") UUID userId,
+            @Param("projectId") UUID projectId,
+            org.springframework.data.domain.Pageable pageable);
+
+    /** All reminders for a user, newest activity first. */
+    @Query("""
+            SELECT r FROM Reminder r
+            WHERE r.createdByUserId = :userId
+            ORDER BY r.updatedAt DESC
+            """)
+    List<Reminder> findAllForUserActivity(
+            @Param("userId") UUID userId,
+            org.springframework.data.domain.Pageable pageable);
+
+    /** Reminders linked to a specific counterparty name (case-insensitive). */
+    @Query("""
+            SELECT r FROM Reminder r
+            WHERE r.createdByUserId = :userId
+              AND r.linkedCounterpartyName IS NOT NULL
+              AND LOWER(TRIM(r.linkedCounterpartyName)) = LOWER(TRIM(CAST(:name AS string)))
+            ORDER BY r.updatedAt DESC
+            """)
+    List<Reminder> findCounterpartyRemindersForActivity(
+            @Param("userId") UUID userId,
+            @Param("name") String name,
+            org.springframework.data.domain.Pageable pageable);
 }

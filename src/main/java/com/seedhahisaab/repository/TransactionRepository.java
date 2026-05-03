@@ -333,4 +333,49 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("ownerUserId") UUID ownerUserId,
             @Param("counterpartyName") String counterpartyName,
             @Param("includeOmitted") boolean includeOmitted);
+
+    // -- Activity timeline aggregators ---------------------------------------
+    //
+    // These return ALL versions (including non-latest and OMITTED rows) so
+    // the timeline can emit CREATED/UPDATED/OMITTED events per the
+    // append-only history. They are read-only; they do not influence any
+    // financial computation.
+
+    /** All transaction rows for a project, newest version-creation first. */
+    @Query(value = """
+            SELECT t.* FROM transactions t
+            WHERE t.project_id = :projectId
+            ORDER BY t.created_at DESC
+            LIMIT :lim
+            """, nativeQuery = true)
+    List<Transaction> findAllProjectVersionsForActivity(
+            @Param("projectId") UUID projectId,
+            @Param("lim") int limit);
+
+    /** All personal (project_id IS NULL) rows for a user, newest first. */
+    @Query(value = """
+            SELECT t.* FROM transactions t
+            WHERE t.owner_user_id = :ownerUserId
+              AND t.project_id IS NULL
+            ORDER BY t.created_at DESC
+            LIMIT :lim
+            """, nativeQuery = true)
+    List<Transaction> findAllPersonalVersionsForActivity(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("lim") int limit);
+
+    /** All counterparty rows for a user (case-insensitive name match). */
+    @Query(value = """
+            SELECT t.* FROM transactions t
+            WHERE t.owner_user_id = :ownerUserId
+              AND t.project_id IS NULL
+              AND t.counterparty_name IS NOT NULL
+              AND LOWER(TRIM(t.counterparty_name)) = LOWER(TRIM(CAST(:name AS text)))
+            ORDER BY t.created_at DESC
+            LIMIT :lim
+            """, nativeQuery = true)
+    List<Transaction> findAllCounterpartyVersionsForActivity(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("name") String name,
+            @Param("lim") int limit);
 }
