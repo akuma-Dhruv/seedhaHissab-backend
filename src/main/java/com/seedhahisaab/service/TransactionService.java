@@ -20,11 +20,14 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final ProjectService projectService;
+    private final InstallmentService installmentService;
 
     public TransactionService(TransactionRepository transactionRepository,
-                               ProjectService projectService) {
+                               ProjectService projectService,
+                               InstallmentService installmentService) {
         this.transactionRepository = transactionRepository;
         this.projectService = projectService;
+        this.installmentService = installmentService;
     }
 
     @Transactional
@@ -33,6 +36,7 @@ public class TransactionService {
         if (req.getProjectId() != null) {
             projectService.requireProject(req.getProjectId(), userId);
         }
+        UUID linkedInstallmentId = resolveLinkedInstallment(req, null, userId);
         UUID id = UUID.randomUUID();
         Transaction txn = Transaction.builder()
                 .id(id)
@@ -45,6 +49,7 @@ public class TransactionService {
                 .vendorId(req.getVendorId())
                 .partnerId(req.getPartnerId())
                 .paidByPartnerId(req.getPaidByPartnerId())
+                .linkedInstallmentId(linkedInstallmentId)
                 .purpose(req.getPurpose())
                 .transactionDate(req.getTransactionDate())
                 .status(TransactionStatus.ACTIVE)
@@ -61,6 +66,7 @@ public class TransactionService {
         if (req.getProjectId() != null && !req.getProjectId().equals(prev.getProjectId())) {
             projectService.requireProject(req.getProjectId(), userId);
         }
+        UUID linkedInstallmentId = resolveLinkedInstallment(req, prev, userId);
         Transaction next = Transaction.builder()
                 .id(UUID.randomUUID())
                 .rootTransactionId(prev.getRootTransactionId())
@@ -72,6 +78,7 @@ public class TransactionService {
                 .vendorId(req.getVendorId())
                 .partnerId(req.getPartnerId())
                 .paidByPartnerId(req.getPaidByPartnerId())
+                .linkedInstallmentId(linkedInstallmentId)
                 .purpose(req.getPurpose())
                 .transactionDate(req.getTransactionDate())
                 .status(TransactionStatus.ACTIVE)
@@ -95,6 +102,7 @@ public class TransactionService {
                 .vendorId(prev.getVendorId())
                 .partnerId(prev.getPartnerId())
                 .paidByPartnerId(prev.getPaidByPartnerId())
+                .linkedInstallmentId(prev.getLinkedInstallmentId())
                 .ownerUserId(prev.getOwnerUserId())
                 .counterpartyName(prev.getCounterpartyName())
                 .counterpartyUserId(prev.getCounterpartyUserId())
@@ -144,6 +152,39 @@ public class TransactionService {
         } else if (!txn.getCreatedBy().equals(userId)) {
             throw ApiException.forbidden("Access denied");
         }
+    }
+
+    /**
+     * Resolves the {@code linkedInstallmentId} for a create/update operation.
+     *
+     * <ul>
+     *   <li>If the caller explicitly passes a non-null id, validate it: must
+     *       be INCOME, must belong to the same project, must not be cancelled.</li>
+     *   <li>If the caller passes null and we have a previous version, carry
+     *       forward the previous link unchanged. This is the "engine survives
+     *       edits and omits" property documented in the receivable rules.</li>
+     *   <li>For non-INCOME types, hard-strip the link — it has no meaning.</li>
+     * </ul>
+     */
+    private UUID resolveLinkedInstallment(TransactionRequest req, Transaction prev, UUID userId) {
+        // Only INCOME transactions may carry a link.
+        if (req.getType() != TransactionType.INCOME) {
+            if (req.getLinkedInstallmentId() != null) {
+                throw ApiException.badRequest(
+                        "Only INCOME transactions can be linked to an installment");
+            }
+            return null;
+        }
+
+        UUID candidate = req.getLinkedInstallmentId();
+        if (candidate == null && prev != null) {
+            // Carry forward unchanged — matches engine "survives edits/omits" rule.
+            candidate = prev.getLinkedInstallmentId();
+        }
+        if (candidate == null) return null;
+
+        installmentService.requireValidLinkTarget(candidate, req.getProjectId(), userId);
+        return candidate;
     }
 
     private void validate(TransactionRequest req) {

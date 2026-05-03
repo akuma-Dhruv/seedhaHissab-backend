@@ -22,6 +22,7 @@ public class ReminderResponse {
     private UUID linkedTransactionId;
     private UUID linkedProjectId;
     private String linkedCounterpartyName;
+    private UUID linkedInstallmentId;
     private UUID createdByUserId;
     private Instant createdAt;
     private Instant updatedAt;
@@ -36,6 +37,7 @@ public class ReminderResponse {
                 .linkedTransactionId(r.getLinkedTransactionId())
                 .linkedProjectId(r.getLinkedProjectId())
                 .linkedCounterpartyName(r.getLinkedCounterpartyName())
+                .linkedInstallmentId(r.getLinkedInstallmentId())
                 .createdByUserId(r.getCreatedByUserId())
                 .createdAt(r.getCreatedAt())
                 .updatedAt(r.getUpdatedAt())

@@ -24,6 +24,9 @@ public class TransactionRequest {
     private UUID partnerId;
     private UUID paidByPartnerId;
 
+    /** Optional installment link — only valid for INCOME transactions. */
+    private UUID linkedInstallmentId;
+
     private String purpose;
 
     @NotNull(message = "Transaction date is required")

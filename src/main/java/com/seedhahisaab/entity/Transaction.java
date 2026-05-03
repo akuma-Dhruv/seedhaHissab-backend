@@ -75,6 +75,16 @@ public class Transaction {
     @Column(name = "purpose")
     private String purpose;
 
+    /**
+     * Optional link to an {@link Installment}. Set ONLY for {@code type=INCOME}
+     * and only when the installment belongs to the same project. Validated in
+     * {@code TransactionService}; receivable derivation in
+     * {@code InstallmentService} sums latest-version, ACTIVE, INCOME rows
+     * matching this column.
+     */
+    @Column(name = "linked_installment_id")
+    private UUID linkedInstallmentId;
+
     @Column(name = "transaction_date", nullable = false)
     private LocalDate transactionDate;
 

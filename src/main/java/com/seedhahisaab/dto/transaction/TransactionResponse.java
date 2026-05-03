@@ -22,6 +22,7 @@ public class TransactionResponse {
     private UUID vendorId;
     private UUID partnerId;
     private UUID paidByPartnerId;
+    private UUID linkedInstallmentId;
     private UUID ownerUserId;
     private String counterpartyName;
     private UUID counterpartyUserId;
@@ -43,6 +44,7 @@ public class TransactionResponse {
         r.setVendorId(t.getVendorId());
         r.setPartnerId(t.getPartnerId());
         r.setPaidByPartnerId(t.getPaidByPartnerId());
+        r.setLinkedInstallmentId(t.getLinkedInstallmentId());
         r.setOwnerUserId(t.getOwnerUserId());
         r.setCounterpartyName(t.getCounterpartyName());
         r.setCounterpartyUserId(t.getCounterpartyUserId());

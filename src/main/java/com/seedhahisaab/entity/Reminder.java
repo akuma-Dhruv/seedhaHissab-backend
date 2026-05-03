@@ -69,6 +69,13 @@ public class Reminder {
     @Column(name = "linked_counterparty_name", length = 255)
     private String linkedCounterpartyName;
 
+    /**
+     * Optional link to an installment. The reminder still stores no money;
+     * this is a context pointer, mirroring the other linked_* fields.
+     */
+    @Column(name = "linked_installment_id")
+    private UUID linkedInstallmentId;
+
     @Column(name = "created_by_user_id", nullable = false)
     private UUID createdByUserId;
 

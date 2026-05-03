@@ -36,4 +36,7 @@ public class ReminderRequest {
 
     @Size(max = 255, message = "Counterparty name must be 255 characters or fewer")
     private String linkedCounterpartyName;
+
+    /** Optional link to an installment. Validated server-side. */
+    private UUID linkedInstallmentId;
 }

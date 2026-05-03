@@ -53,13 +53,16 @@ public class ReminderService {
     private final ReminderRepository reminderRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectService projectService;
+    private final InstallmentService installmentService;
 
     public ReminderService(ReminderRepository reminderRepository,
                            TransactionRepository transactionRepository,
-                           ProjectService projectService) {
+                           ProjectService projectService,
+                           InstallmentService installmentService) {
         this.reminderRepository = reminderRepository;
         this.transactionRepository = transactionRepository;
         this.projectService = projectService;
+        this.installmentService = installmentService;
     }
 
     // ------------------------------------------------------------------
@@ -71,6 +74,7 @@ public class ReminderService {
         UUID rootTxnId = resolveRootTransactionId(req.getLinkedTransactionId(), userId);
         UUID projectId = validateLinkedProject(req.getLinkedProjectId(), userId);
         String counterparty = normaliseCounterparty(req.getLinkedCounterpartyName());
+        UUID linkedInstallmentId = validateLinkedInstallment(req.getLinkedInstallmentId(), userId);
 
         Reminder r = Reminder.builder()
                 .id(UUID.randomUUID())
@@ -81,6 +85,7 @@ public class ReminderService {
                 .linkedTransactionId(rootTxnId)
                 .linkedProjectId(projectId)
                 .linkedCounterpartyName(counterparty)
+                .linkedInstallmentId(linkedInstallmentId)
                 .createdByUserId(userId)
                 .build();
         return ReminderResponse.from(reminderRepository.save(r));
@@ -99,6 +104,7 @@ public class ReminderService {
         r.setLinkedTransactionId(rootTxnId);
         r.setLinkedProjectId(projectId);
         r.setLinkedCounterpartyName(counterparty);
+        r.setLinkedInstallmentId(validateLinkedInstallment(req.getLinkedInstallmentId(), userId));
         return ReminderResponse.from(reminderRepository.save(r));
     }
 
@@ -243,6 +249,17 @@ public class ReminderService {
         if (projectId == null) return null;
         projectService.requireProject(projectId, userId);
         return projectId;
+    }
+
+    /**
+     * Validates that the user owns the linked installment and (transitively)
+     * its project. Returns null when input is null. Mirrors the existing
+     * {@link #validateLinkedProject} flow.
+     */
+    private UUID validateLinkedInstallment(UUID installmentId, UUID userId) {
+        if (installmentId == null) return null;
+        installmentService.requireReadable(installmentId, userId);
+        return installmentId;
     }
 
     private static String normaliseCounterparty(String raw) {
