@@ -26,6 +26,12 @@ public interface InstallmentRepository extends JpaRepository<Installment, UUID> 
 
     Optional<Installment> findByIdAndCreatedByUserId(UUID id, UUID userId);
 
+    /**
+     * Targeted count for {@code CustomerService.delete}'s soft-block check.
+     * Avoids loading the entire installments table into memory.
+     */
+    long countByCustomerIdAndCreatedByUserId(UUID customerId, UUID userId);
+
     @Query("""
             SELECT i FROM Installment i
             WHERE i.projectId = :projectId

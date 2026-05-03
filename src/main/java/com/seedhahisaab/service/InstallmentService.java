@@ -179,24 +179,50 @@ public class InstallmentService {
         }
 
         // Map a status filter onto the manual filter where possible. Stored
-        // states are {PENDING, CANCELLED}; everything else needs derivation
-        // and post-filtering.
+        // states are {PENDING, CANCELLED}; everything else needs derivation.
         InstallmentManualStatus manualFilter = null;
         if (statusFilter == InstallmentDerivedStatus.CANCELLED) {
             manualFilter = InstallmentManualStatus.CANCELLED;
         } else if (statusFilter != null) {
-            // PENDING/PARTIALLY_RECEIVED/RECEIVED/OVERDUE → manual must be PENDING
             manualFilter = InstallmentManualStatus.PENDING;
         }
 
-        Page<Installment> p = installmentRepository.searchByProject(
-                projectId, manualFilter, customerId, PageRequest.of(page, limit));
+        boolean needsDerivedFilter = overdueOnly
+                || (statusFilter != null
+                    && statusFilter != InstallmentDerivedStatus.CANCELLED);
 
         LocalDate today = todayInAppZone();
-        Map<UUID, String> customerNames = bulkCustomerNames(p.getContent(), userId);
-        Map<UUID, BigDecimal> received = bulkReceived(p.getContent());
 
-        List<InstallmentResponse> data = p.getContent().stream()
+        if (!needsDerivedFilter) {
+            // Fast path: no derived filter, the DB page is the final page.
+            Page<Installment> p = installmentRepository.searchByProject(
+                    projectId, manualFilter, customerId, PageRequest.of(page, limit));
+            Map<UUID, String> customerNames = bulkCustomerNames(p.getContent(), userId);
+            Map<UUID, BigDecimal> received = bulkReceived(p.getContent());
+            List<InstallmentResponse> data = p.getContent().stream()
+                    .map(i -> toResponse(i,
+                            customerNames.get(i.getCustomerId()),
+                            received.getOrDefault(i.getId(), BigDecimal.ZERO),
+                            today,
+                            null))
+                    .collect(Collectors.toList());
+            return new PagedResponse<>(data, page, limit, p.getTotalElements());
+        }
+
+        // Derived-status path: derive over the full project-scoped result,
+        // filter, then paginate. We cannot push the filter into SQL without
+        // duplicating the derivation logic across two layers.
+        final InstallmentManualStatus manualFilterFinal = manualFilter;
+        final UUID customerIdFinal = customerId;
+        List<Installment> all = installmentRepository.findAllByProject(projectId).stream()
+                .filter(i -> manualFilterFinal == null || i.getManualStatus() == manualFilterFinal)
+                .filter(i -> customerIdFinal == null || customerIdFinal.equals(i.getCustomerId()))
+                .collect(Collectors.toList());
+
+        Map<UUID, String> customerNames = bulkCustomerNames(all, userId);
+        Map<UUID, BigDecimal> received = bulkReceived(all);
+
+        List<InstallmentResponse> derived = all.stream()
                 .map(i -> toResponse(i,
                         customerNames.get(i.getCustomerId()),
                         received.getOrDefault(i.getId(), BigDecimal.ZERO),
@@ -209,7 +235,10 @@ public class InstallmentService {
                 })
                 .collect(Collectors.toList());
 
-        return new PagedResponse<>(data, page, limit, p.getTotalElements());
+        long total = derived.size();
+        int from = Math.min(page * limit, derived.size());
+        int to = Math.min(from + limit, derived.size());
+        return new PagedResponse<>(derived.subList(from, to), page, limit, total);
     }
 
     /**

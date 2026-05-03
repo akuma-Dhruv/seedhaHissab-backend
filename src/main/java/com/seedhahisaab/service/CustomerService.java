@@ -77,11 +77,8 @@ public class CustomerService {
     @Transactional
     public void delete(UUID customerId, UUID userId) {
         Customer c = requireOwned(customerId, userId);
-        // Check installments referencing this customer
-        if (!installmentRepository.findAll().stream()
-                .filter(i -> i.getCreatedByUserId().equals(userId))
-                .filter(i -> customerId.equals(i.getCustomerId()))
-                .toList().isEmpty()) {
+        // Targeted count — never load the entire installments table.
+        if (installmentRepository.countByCustomerIdAndCreatedByUserId(customerId, userId) > 0) {
             throw ApiException.conflict(
                     "Cannot delete customer with linked installments. Cancel installments first.");
         }
