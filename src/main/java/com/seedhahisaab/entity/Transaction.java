@@ -12,14 +12,18 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
-@Table(name = "transactions", indexes = {
-        @Index(name = "idx_txn_root_version", columnList = "root_transaction_id, version"),
-        @Index(name = "idx_txn_project_id", columnList = "project_id"),
-        @Index(name = "idx_txn_vendor_project", columnList = "vendor_id, project_id"),
-        @Index(name = "idx_txn_paid_by_partner", columnList = "paid_by_partner_id"),
-        @Index(name = "idx_txn_root_id", columnList = "root_transaction_id"),
-        @Index(name = "idx_txn_owner_user", columnList = "owner_user_id")
-})
+@Table(name = "transactions",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_txn_root_version", columnNames = {"root_transaction_id", "version"})
+        },
+        indexes = {
+                @Index(name = "idx_txn_project_id", columnList = "project_id"),
+                @Index(name = "idx_txn_vendor_project", columnList = "vendor_id, project_id"),
+                @Index(name = "idx_txn_paid_by_partner", columnList = "paid_by_partner_id"),
+                @Index(name = "idx_txn_root_id", columnList = "root_transaction_id"),
+                @Index(name = "idx_txn_owner_user", columnList = "owner_user_id"),
+                @Index(name = "idx_txn_owner_counterparty", columnList = "owner_user_id, counterparty_name")
+        })
 @Getter
 @Setter
 @NoArgsConstructor

@@ -1,6 +1,7 @@
 package com.seedhahisaab.controller;
 
 import com.seedhahisaab.dto.common.PagedResponse;
+import com.seedhahisaab.dto.summary.CounterpartySummaryResponse;
 import com.seedhahisaab.dto.summary.PersonalSummaryResponse;
 import com.seedhahisaab.dto.transaction.PersonalTransactionRequest;
 import com.seedhahisaab.dto.transaction.TransactionResponse;
@@ -44,6 +45,14 @@ public class PersonalTransactionController {
         return ResponseEntity.ok(personalTransactionService.create(req, currentUserId(user)));
     }
 
+    @PutMapping("/transactions/{id}")
+    public ResponseEntity<TransactionResponse> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody PersonalTransactionRequest req,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(personalTransactionService.update(id, req, currentUserId(user)));
+    }
+
     @GetMapping("/transactions")
     public ResponseEntity<PagedResponse<TransactionResponse>> list(
             @RequestParam(defaultValue = "false") boolean includeOmitted,
@@ -65,6 +74,27 @@ public class PersonalTransactionController {
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(transactionService.getHistory(id, currentUserId(user)));
+    }
+
+    @GetMapping("/counterparties")
+    public ResponseEntity<PagedResponse<CounterpartySummaryResponse>> counterparties(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int limit,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(personalTransactionService.counterparties(
+                currentUserId(user), search, page, limit));
+    }
+
+    @GetMapping("/counterparties/{name}/ledger")
+    public ResponseEntity<PagedResponse<TransactionResponse>> counterpartyLedger(
+            @PathVariable("name") String name,
+            @RequestParam(defaultValue = "false") boolean includeOmitted,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int limit,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(personalTransactionService.counterpartyLedger(
+                currentUserId(user), name, includeOmitted, page, limit));
     }
 
     private UUID currentUserId(UserDetails user) {

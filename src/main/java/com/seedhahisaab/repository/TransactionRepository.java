@@ -198,4 +198,139 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     BigDecimal sumActivePersonalByOwnerAndType(
             @Param("ownerUserId") UUID ownerUserId,
             @Param("txnType") String txnType);
+
+    // ----------------------------------------------------------------------
+    // Counterparty ledger queries
+    //
+    // Aggregates personal latest-active rows by lower-trimmed counterparty
+    // name. The "given" / "received" columns sum signed amounts according to
+    // the convention in PersonalLedgerSign:
+    //   given    = SUM(amount) where type IN (LEND, REPAYMENT_GIVEN, EXPENSE)
+    //   received = SUM(amount) where type IN (BORROW, REPAYMENT_RECEIVED, INCOME)
+    // EXPENSE / INCOME without a counterparty are excluded by the
+    // counterparty_name IS NOT NULL filter.
+    //
+    // Native query returns Object[]: { counterpartyName, given, received }.
+    // ----------------------------------------------------------------------
+
+    @Query(value = """
+            SELECT
+                MAX(t.counterparty_name) AS counterparty_name,
+                COALESCE(SUM(CASE WHEN t.type IN ('LEND','REPAYMENT_GIVEN','EXPENSE') THEN t.amount ELSE 0 END), 0) AS total_given,
+                COALESCE(SUM(CASE WHEN t.type IN ('BORROW','REPAYMENT_RECEIVED','INCOME') THEN t.amount ELSE 0 END), 0) AS total_received
+            FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE t.status = 'ACTIVE'
+              AND t.counterparty_name IS NOT NULL
+              AND TRIM(t.counterparty_name) <> ''
+              AND (CAST(:search AS text) IS NULL
+                   OR LOWER(t.counterparty_name) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))
+            GROUP BY LOWER(TRIM(t.counterparty_name))
+            ORDER BY MAX(t.counterparty_name) ASC
+            LIMIT :lim OFFSET :off
+            """, nativeQuery = true)
+    List<Object[]> aggregateCounterpartiesPaged(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("search") String search,
+            @Param("lim") int limit,
+            @Param("off") int offset);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM (
+                SELECT 1
+                FROM transactions t
+                INNER JOIN (
+                    SELECT root_transaction_id, MAX(version) AS max_version
+                    FROM transactions
+                    WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                    GROUP BY root_transaction_id
+                ) latest ON t.root_transaction_id = latest.root_transaction_id
+                        AND t.version = latest.max_version
+                WHERE t.status = 'ACTIVE'
+                  AND t.counterparty_name IS NOT NULL
+                  AND TRIM(t.counterparty_name) <> ''
+                  AND (CAST(:search AS text) IS NULL
+                       OR LOWER(t.counterparty_name) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))
+                GROUP BY LOWER(TRIM(t.counterparty_name))
+            ) grouped
+            """, nativeQuery = true)
+    long countCounterparties(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("search") String search);
+
+    /**
+     * Returns one row per counterparty (no pagination, no search) for
+     * computing roll-up totals like totalReceivable / totalPayable.
+     * Counterparty count is expected to be small (tens, not thousands).
+     */
+    @Query(value = """
+            SELECT
+                MAX(t.counterparty_name) AS counterparty_name,
+                COALESCE(SUM(CASE WHEN t.type IN ('LEND','REPAYMENT_GIVEN','EXPENSE') THEN t.amount ELSE 0 END), 0) AS total_given,
+                COALESCE(SUM(CASE WHEN t.type IN ('BORROW','REPAYMENT_RECEIVED','INCOME') THEN t.amount ELSE 0 END), 0) AS total_received
+            FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE t.status = 'ACTIVE'
+              AND t.counterparty_name IS NOT NULL
+              AND TRIM(t.counterparty_name) <> ''
+            GROUP BY LOWER(TRIM(t.counterparty_name))
+            """, nativeQuery = true)
+    List<Object[]> aggregateAllCounterparties(@Param("ownerUserId") UUID ownerUserId);
+
+    /**
+     * All latest-version personal rows for a single counterparty (case- and
+     * trim-insensitive match), ordered newest-first. Used by the
+     * /personal/counterparties/{name}/ledger endpoint.
+     */
+    @Query(value = """
+            SELECT t.* FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE (:includeOmitted = true OR t.status = 'ACTIVE')
+              AND t.counterparty_name IS NOT NULL
+              AND LOWER(TRIM(t.counterparty_name)) = LOWER(TRIM(CAST(:counterpartyName AS text)))
+            ORDER BY t.transaction_date DESC, t.created_at DESC
+            LIMIT :lim OFFSET :off
+            """, nativeQuery = true)
+    List<Transaction> findCounterpartyLedger(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("counterpartyName") String counterpartyName,
+            @Param("includeOmitted") boolean includeOmitted,
+            @Param("lim") int limit,
+            @Param("off") int offset);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM transactions t
+            INNER JOIN (
+                SELECT root_transaction_id, MAX(version) AS max_version
+                FROM transactions
+                WHERE owner_user_id = :ownerUserId AND project_id IS NULL
+                GROUP BY root_transaction_id
+            ) latest ON t.root_transaction_id = latest.root_transaction_id
+                    AND t.version = latest.max_version
+            WHERE (:includeOmitted = true OR t.status = 'ACTIVE')
+              AND t.counterparty_name IS NOT NULL
+              AND LOWER(TRIM(t.counterparty_name)) = LOWER(TRIM(CAST(:counterpartyName AS text)))
+            """, nativeQuery = true)
+    long countCounterpartyLedger(
+            @Param("ownerUserId") UUID ownerUserId,
+            @Param("counterpartyName") String counterpartyName,
+            @Param("includeOmitted") boolean includeOmitted);
 }
