@@ -20,13 +20,16 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final ProjectService projectService;
+    private final ProjectAccessService projectAccessService;
     private final InstallmentService installmentService;
 
     public TransactionService(TransactionRepository transactionRepository,
                                ProjectService projectService,
+                               ProjectAccessService projectAccessService,
                                InstallmentService installmentService) {
         this.transactionRepository = transactionRepository;
         this.projectService = projectService;
+        this.projectAccessService = projectAccessService;
         this.installmentService = installmentService;
     }
 
@@ -34,7 +37,8 @@ public class TransactionService {
     public TransactionResponse create(TransactionRequest req, UUID userId) {
         validate(req);
         if (req.getProjectId() != null) {
-            projectService.requireProject(req.getProjectId(), userId);
+            // OWNER, EDITOR, ACCOUNTANT can record. VIEWER is rejected.
+            projectAccessService.requireCanCreateTransaction(req.getProjectId(), userId);
         }
         UUID linkedInstallmentId = resolveLinkedInstallment(req, null, userId);
         UUID id = UUID.randomUUID();
@@ -62,9 +66,9 @@ public class TransactionService {
     public TransactionResponse update(UUID txnId, TransactionRequest req, UUID userId) {
         validate(req);
         Transaction prev = resolveLatest(txnId);
-        requireTransactionOwnership(prev, userId);
+        requireTransactionEdit(prev, userId);
         if (req.getProjectId() != null && !req.getProjectId().equals(prev.getProjectId())) {
-            projectService.requireProject(req.getProjectId(), userId);
+            projectAccessService.requireCanEditTransaction(req.getProjectId(), userId);
         }
         UUID linkedInstallmentId = resolveLinkedInstallment(req, prev, userId);
         Transaction next = Transaction.builder()
@@ -90,7 +94,7 @@ public class TransactionService {
     @Transactional
     public TransactionResponse omit(UUID txnId, UUID userId) {
         Transaction prev = resolveLatest(txnId);
-        requireTransactionOwnership(prev, userId);
+        requireTransactionEdit(prev, userId);
         Transaction omitted = Transaction.builder()
                 .id(UUID.randomUUID())
                 .rootTransactionId(prev.getRootTransactionId())
@@ -146,9 +150,15 @@ public class TransactionService {
                 .orElseThrow(() -> ApiException.notFound("No active version found for transaction"));
     }
 
-    private void requireTransactionOwnership(Transaction txn, UUID userId) {
+    /**
+     * Edit-capability gate for an existing transaction. Project transactions
+     * require OWNER or EDITOR membership (ACCOUNTANT can create but not
+     * edit). Personal-ledger transactions remain creator-only — sharing a
+     * project never shares personal data.
+     */
+    private void requireTransactionEdit(Transaction txn, UUID userId) {
         if (txn.getProjectId() != null) {
-            projectService.requireProject(txn.getProjectId(), userId);
+            projectAccessService.requireCanEditTransaction(txn.getProjectId(), userId);
         } else if (!txn.getCreatedBy().equals(userId)) {
             throw ApiException.forbidden("Access denied");
         }
